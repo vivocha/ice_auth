@@ -1,3 +1,5 @@
+#!/usr/bin/node
+
 var fs = require('fs')
   , http = require('http')
   , https = require('https')
