@@ -9,12 +9,12 @@ var fs = require('fs')
   , bodyParser = require('body-parser')
   , app = express()
   , cfg = {
-    mongoURI: 'mongodb://localhost:27017/turn?replicaSet=ice&readPreference=nearest',
+    mongoURI: 'mongodb://localhost:27017/turn?replicaSet=ice&readPreference=nearest&auto_reconnect=true',
     keyPath: '/etc/turn/vivocha.com.key',
     certPath: '/etc/turn/vivocha.com.crt',
     realm: 'vivocha'
   }
-  
+
 mongo.MongoClient.connect(cfg.mongoURI, function(err, db) {
   if (err) {
     console.error('Failed to connect to MongoDB');
@@ -23,13 +23,18 @@ mongo.MongoClient.connect(cfg.mongoURI, function(err, db) {
     console.error('Failed to get a MongoDB handle');
     process.exit(2);
   } else {
+    ensureIndexes(db, function (err) {
+      if (err) {
+        console.error('Failed to ensure indexes');
+        process.exit(3);
+      }       
+    });
     var credentials = {
       key: fs.readFileSync(cfg.keyPath, 'utf8'),
       cert: fs.readFileSync(cfg.certPath, 'utf8')
     };
     var httpServer = http.createServer(app);
     var httpsServer = https.createServer(credentials, app);
-
     app.use(bodyParser.json());
     app.post('/auth', function(req, res) {
       if (!req.body || !req.body.uid || !req.body.pwd) {
@@ -72,3 +77,25 @@ mongo.MongoClient.connect(cfg.mongoURI, function(err, db) {
     httpsServer.listen(6546);
   }
 });
+
+function ensureIndexes(db, cb) {  
+  var turnusers_lt = db.collection("turnusers_lt");
+  var turnusers_st = db.collection("turnusers_st");
+  var turn_secret = db.collection("turn_secret");
+  var realm = db.collection("realm"); 
+  turnusers_lt.ensureIndex({ "ts": 1 }, { "expireAfterSeconds": 86400, background: true}, function (err) {
+    if (err) { cb(err); return; }
+    turnusers_lt.ensureIndex({ "realm": 1, "name": 1 }, {"unique" : true, background: true}, function (err) {
+      if (err) { cb(err); return; }
+      turnusers_st.ensureIndex({ "name": 1 }, {"unique": true, background: true}, function (err) {
+        if (err) { cb(err); return; }
+        turn_secret.ensureIndex({ "realm": 1 }, {"unique": true, background: true}, function (err) {
+          if (err) { cb(err); return; }
+          realm.ensureIndex({ "realm": 1 }, {"unique": true, background: true}, function (err) {
+            cb(err);
+          });
+        });
+      });
+    });
+  });  
+}
