@@ -1,6 +1,6 @@
 {
   "name": "ice_auth",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Vivocha ICE Server Authentication WS",
   "author": "Federico Pinna <fpinna@vivocha.com>",
   "main": "./index.js",
